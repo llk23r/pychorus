@@ -152,7 +152,7 @@ def find_chorus(chroma, sr, song_length_sec, clip_length):
     lines = detect_lines(time_lag_similarity.matrix, candidate_rows,
                          clip_length_samples)
     if len(lines) == 0:
-        print("No choruses were detected. Try a smaller search duration")
+        print(f"No choruses were detected. Trying with a smaller search duration.")
         return None
     line_scores = count_overlapping_lines(
         lines, OVERLAP_PERCENT_MARGIN * clip_length_samples,
