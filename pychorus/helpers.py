@@ -161,7 +161,7 @@ def find_chorus(chroma, sr, song_length_sec, clip_length):
     return best_chorus.start / chroma_sr
 
 
-def find_and_output_chorus(input_file, output_file, clip_length=15, repeat=None):
+def find_and_output_chorus(input_files, output_file, clip_length=15, repeat=None):
     """
     Finds the most repeated chorus from input_file and outputs to output file.
 
@@ -173,27 +173,34 @@ def find_and_output_chorus(input_file, output_file, clip_length=15, repeat=None)
 
     Returns: Time in seconds of the start of the best chorus
     """
-    chroma, song_wav_data, sr, song_length_sec = create_chroma(input_file)
-    chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
-    while chorus_start is None:
-        clip_length = clip_length - 5
-        print(f"No choruses were detected. Trying with a smaller search duration of {clip_length}")
-        if clip_length > 0:
-            chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
-        else:
-            chorus_start = -1
-            return
+    chorus_collections = []
+    merged_choruses = None
+    for input_file in input_files:
+        chroma, song_wav_data, sr, song_length_sec = create_chroma(input_file)
+        chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
+        while chorus_start is None:
+            clip_length = clip_length - 5
+            print(f"No choruses were detected for {input_file}. Trying with a smaller search duration of {clip_length}")
+            if clip_length > 0:
+                chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
+            else:
+                return
+        print("Best chorus found at {0:g} min {1:.2f} sec".format(chorus_start // 60, chorus_start % 60))
+        if output_file is not None:
+            chorus_wave_data = song_wav_data[int(chorus_start*sr) : int((chorus_start+clip_length)*sr)]
+            try:
+                repetition = input_file.split('--_')[1].split('.')[0]
+                if repetition:
+                    chorus_wave_data = np.tile(chorus_wave_data, int(repetition))
+            except:
+                print(f"No repetition for {input_file}")
+            chorus_collections.append(chorus_wave_data)
 
-
-    print("Best chorus found at {0:g} min {1:.2f} sec".format(
-        chorus_start // 60, chorus_start % 60))
-
-    if output_file is not None:
-        chorus_wave_data = song_wav_data[int(chorus_start*sr) : int((chorus_start+clip_length)*sr)]
-        if repeat:
-            print(f"\n Repeating the chorus {repeat-1} times.")
-            chorus_wave_data = np.tile(chorus_wave_data, repeat)
-        sf.write(output_file, chorus_wave_data, sr)
-        #librosa.output.write_wav(output_file, chorus_wave_data, sr)
+    if repeat:
+        print(f"\n Repeating the chorus {repeat-1} times.")
+        merged_choruses = np.concatenate(chorus_collections)
+        chorus_wave_data = np.tile(merged_choruses, repeat)
+    sf.write(output_file, chorus_wave_data, sr)
+    #librosa.output.write_wav(output_file, chorus_wave_data, sr)
 
     return chorus_start
