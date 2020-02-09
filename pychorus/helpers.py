@@ -175,6 +175,8 @@ def find_and_output_chorus(input_files, output_file, clip_length=15, repeat=None
     """
     chorus_collections = []
     merged_choruses = None
+    transition_wav_data, _tsr = librosa.load('./DJ-Scratch-3.mp3') # load backspin
+
     for input_file in input_files:
         chroma, song_wav_data, sr, song_length_sec = create_chroma(input_file)
         chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
@@ -195,6 +197,7 @@ def find_and_output_chorus(input_files, output_file, clip_length=15, repeat=None
             except:
                 print(f"No repetition for {input_file}")
             chorus_collections.append(chorus_wave_data)
+            chorus_collections.append(transition_wav_data[13500:]) # Add backspin
 
     if repeat:
         print(f"\n Repeating the chorus {repeat-1} times.")
