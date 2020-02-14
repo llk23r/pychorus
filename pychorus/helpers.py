@@ -4,9 +4,19 @@ import scipy.signal
 import soundfile as sf
 
 
-from pychorus.similarity_matrix import TimeTimeSimilarityMatrix, TimeLagSimilarityMatrix, Line
-from pychorus.constants import N_FFT, SMOOTHING_SIZE_SEC, LINE_THRESHOLD, MIN_LINES, \
-    NUM_ITERATIONS, OVERLAP_PERCENT_MARGIN
+from pychorus.similarity_matrix import (
+    TimeTimeSimilarityMatrix,
+    TimeLagSimilarityMatrix,
+    Line,
+)
+from pychorus.constants import (
+    N_FFT,
+    SMOOTHING_SIZE_SEC,
+    LINE_THRESHOLD,
+    MIN_LINES,
+    NUM_ITERATIONS,
+    OVERLAP_PERCENT_MARGIN,
+)
 
 
 def local_maxima_rows(denoised_time_lag):
@@ -22,8 +32,9 @@ def detect_lines(denoised_time_lag, rows, min_length_samples):
     """Detect lines in the time lag matrix. Reduce the threshold until we find enough lines"""
     cur_threshold = LINE_THRESHOLD
     for _ in range(NUM_ITERATIONS):
-        line_segments = detect_lines_helper(denoised_time_lag, rows,
-                                            cur_threshold, min_length_samples)
+        line_segments = detect_lines_helper(
+            denoised_time_lag, rows, cur_threshold, min_length_samples
+        )
         if len(line_segments) >= MIN_LINES:
             return line_segments
         cur_threshold *= 0.95
@@ -31,8 +42,7 @@ def detect_lines(denoised_time_lag, rows, min_length_samples):
     return line_segments
 
 
-def detect_lines_helper(denoised_time_lag, rows, threshold,
-                        min_length_samples):
+def detect_lines_helper(denoised_time_lag, rows, threshold, min_length_samples):
     """Detect lines where at least min_length_samples are above threshold"""
     num_samples = denoised_time_lag.shape[0]
     line_segments = []
@@ -45,8 +55,9 @@ def detect_lines_helper(denoised_time_lag, rows, threshold,
                 if cur_segment_start is None:
                     cur_segment_start = col
             else:
-                if (cur_segment_start is not None
-                   ) and (col - cur_segment_start) > min_length_samples:
+                if (cur_segment_start is not None) and (
+                    col - cur_segment_start
+                ) > min_length_samples:
                     line_segments.append(Line(cur_segment_start, col, row))
                 cur_segment_start = None
     return line_segments
@@ -63,14 +74,22 @@ def count_overlapping_lines(lines, margin, min_length_samples):
         for line_2 in lines:
             # If line_2 completely covers line_1 (with some margin), line_1 gets a point
             lines_overlap_vertically = (
-                line_2.start < (line_1.start + margin)) and (
-                    line_2.end > (line_1.end - margin)) and (
-                        abs(line_2.lag - line_1.lag) > min_length_samples)
+                (line_2.start < (line_1.start + margin))
+                and (line_2.end > (line_1.end - margin))
+                and (abs(line_2.lag - line_1.lag) > min_length_samples)
+            )
 
             lines_overlap_diagonally = (
-                (line_2.start - line_2.lag) < (line_1.start - line_1.lag + margin)) and (
-                    (line_2.end - line_2.lag) > (line_1.end - line_1.lag - margin)) and (
-                        abs(line_2.lag - line_1.lag) > min_length_samples)
+                (
+                    (line_2.start - line_2.lag)
+                    < (line_1.start - line_1.lag + margin)
+                )
+                and (
+                    (line_2.end - line_2.lag)
+                    > (line_1.end - line_1.lag - margin)
+                )
+                and (abs(line_2.lag - line_1.lag) > min_length_samples)
+            )
 
             if lines_overlap_vertically or lines_overlap_diagonally:
                 line_scores[line_1] += 1
@@ -93,16 +112,18 @@ def draw_lines(num_samples, sample_rate, lines):
     """Debugging function to draw detected lines in black"""
     lines_matrix = np.zeros((num_samples, num_samples))
     for line in lines:
-        lines_matrix[line.lag:line.lag + 4, line.start:line.end + 1] = 1
+        lines_matrix[line.lag : line.lag + 4, line.start : line.end + 1] = 1
 
     # Import here since this function is only for debugging
     import librosa.display
     import matplotlib.pyplot as plt
+
     librosa.display.specshow(
         lines_matrix,
-        y_axis='time',
-        x_axis='time',
-        sr=sample_rate / (N_FFT / 2048))
+        y_axis="time",
+        x_axis="time",
+        sr=sample_rate / (N_FFT / 2048),
+    )
     plt.colorbar()
     plt.set_cmap("hot_r")
     plt.show()
@@ -117,7 +138,7 @@ def create_chroma(input_file, n_fft=N_FFT):
     """
     y, sr = librosa.load(input_file)
     song_length_sec = y.shape[0] / float(sr)
-    S = np.abs(librosa.stft(y, n_fft=n_fft))**2
+    S = np.abs(librosa.stft(y, n_fft=n_fft)) ** 2
     chroma = librosa.feature.chroma_stft(S=S, sr=sr)
 
     return chroma, y, sr, song_length_sec
@@ -143,25 +164,31 @@ def find_chorus(chroma, sr, song_length_sec, clip_length):
     # Denoise the time lag matrix
     chroma_sr = num_samples / song_length_sec
     smoothing_size_samples = int(SMOOTHING_SIZE_SEC * chroma_sr)
-    time_lag_similarity.denoise(time_time_similarity.matrix,
-                                smoothing_size_samples)
+    time_lag_similarity.denoise(
+        time_time_similarity.matrix, smoothing_size_samples
+    )
 
     # Detect lines in the image
     clip_length_samples = clip_length * chroma_sr
     candidate_rows = local_maxima_rows(time_lag_similarity.matrix)
-    lines = detect_lines(time_lag_similarity.matrix, candidate_rows,
-                         clip_length_samples)
+    lines = detect_lines(
+        time_lag_similarity.matrix, candidate_rows, clip_length_samples
+    )
     if len(lines) == 0:
-        print(f"No choruses were detected. Trying with a smaller search duration.")
+        print(
+            f"No choruses were detected. Trying with a smaller search duration."
+        )
         return None
     line_scores = count_overlapping_lines(
-        lines, OVERLAP_PERCENT_MARGIN * clip_length_samples,
-        clip_length_samples)
+        lines, OVERLAP_PERCENT_MARGIN * clip_length_samples, clip_length_samples
+    )
     best_chorus = best_segment(line_scores)
     return best_chorus.start / chroma_sr
 
 
-def find_and_output_chorus(input_files, output_file, clip_length=15, repeat=None):
+def find_and_output_chorus(
+    input_files, output_file, clip_length=15, repeat=None
+):
     """
     Finds the most repeated chorus from input_file and outputs to output file.
 
@@ -175,35 +202,66 @@ def find_and_output_chorus(input_files, output_file, clip_length=15, repeat=None
     """
     chorus_collections = []
     merged_choruses = None
-    transition_wav_data, _tsr = librosa.load('./DJ-Scratch-3.mp3') # load backspin
+    try:
+        transition_wav_data, _tsr = librosa.load(
+            "./static/audio/DJ-Scratch-3.mp3"
+        )  # load backspin
+    except Exception as e:
+        print(
+            f"""Could not load transition.
+              Error: {e}
+              """
+        )
 
     for input_file in input_files:
         chroma, song_wav_data, sr, song_length_sec = create_chroma(input_file)
         chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
         while chorus_start is None:
             clip_length = clip_length - 5
-            print(f"No choruses were detected for {input_file}. Trying with a smaller search duration of {clip_length}")
+            print(
+                f"No choruses were detected for {input_file}. Trying with a smaller search duration of {clip_length}"
+            )
             if clip_length > 0:
-                chorus_start = find_chorus(chroma, sr, song_length_sec, clip_length)
+                chorus_start = find_chorus(
+                    chroma, sr, song_length_sec, clip_length
+                )
             else:
                 return
-        print("Best chorus found at {0:g} min {1:.2f} sec".format(chorus_start // 60, chorus_start % 60))
+        print(
+            "Best chorus found at {0:g} min {1:.2f} sec".format(
+                chorus_start // 60, chorus_start % 60
+            )
+        )
         if output_file is not None:
-            chorus_wave_data = song_wav_data[int(chorus_start*sr) : int((chorus_start+clip_length)*sr)]
+            chorus_wave_data = song_wav_data[
+                int(chorus_start * sr) : int((chorus_start + clip_length) * sr)
+            ]
             try:
-                repetition = input_file.split('--_')[1].split('.')[0]
+                repetition = input_file.split("--_")[1].split(".")[0]
                 if repetition:
-                    chorus_wave_data = np.tile(chorus_wave_data, int(repetition))
-            except:
+                    chorus_wave_data = np.tile(
+                        chorus_wave_data, int(repetition)
+                    )
+            except Exception:
                 print(f"No repetition for {input_file}")
             chorus_collections.append(chorus_wave_data)
-            chorus_collections.append(transition_wav_data[13500:]) # Add backspin
+            try:
+                chorus_collections.append(
+                    transition_wav_data[13500:]
+                )  # Add backspin
+            except Exception as e:
+                print(
+                    f"""
+                      Could not append transition.
+                      Error: {e}
+                      """
+                )
 
     if repeat:
         print(f"\n Repeating the chorus {repeat-1} times.")
         merged_choruses = np.concatenate(chorus_collections)
         chorus_wave_data = np.tile(merged_choruses, repeat)
     sf.write(output_file, chorus_wave_data, sr)
-    #librosa.output.write_wav(output_file, chorus_wave_data, sr)
+    # librosa.output.write_wav(output_file, chorus_wave_data, sr)
 
     return chorus_start
